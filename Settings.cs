@@ -1,3 +1,4 @@
+using System.Linq;
 using ExileCore2.Shared.Attributes;
 using ExileCore2.Shared.Interfaces;
 using ExileCore2.Shared.Nodes;
@@ -14,7 +15,30 @@ namespace StrongboxHelper
         [Menu("Restore mouse to original position", "Restore mouse to original position")]
         public ToggleNode RestoreMouseToOriginalPosition { get; set; } = new(true);
 
-        public StrongboxEnableSettings StrongboxEnableSettings { get; set; } = new();
-        public StrongboxSettings StrongboxSettings { get; set; } = new();
+        public StrongboxTypeGroup CustomStrongboxTypes { get; set; } = new();
+        
+        private bool _defaultsInitialized = false;
+        
+        public void EnsureDefaultsInitialized()
+        {
+            if (_defaultsInitialized || CustomStrongboxTypes.Items.Any()) return;
+            
+            // populate with default strongbox types
+            var researcherStrongbox = new StrongBoxSettingsItem("Researcher's Strongbox") { Exalted = true };
+            
+            CustomStrongboxTypes.Items.AddRange(new[]
+            {
+                new StrongBoxSettingsItem("Cartographer's Strongbox"),
+                new StrongBoxSettingsItem("Blacksmith's Strongbox"),
+                new StrongBoxSettingsItem("Jeweller's Strongbox"),
+                new StrongBoxSettingsItem("Ornate Strongbox"),
+                researcherStrongbox,
+                new StrongBoxSettingsItem("Strongbox"),
+                new StrongBoxSettingsItem("Large Strongbox"),
+                new StrongBoxSettingsItem("Arcane Strongbox")
+            });
+            
+            _defaultsInitialized = true;
+        }
     }
 }

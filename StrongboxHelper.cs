@@ -7,24 +7,10 @@ using ExileCore2;
 using ExileCore2.PoEMemory;
 using ExileCore2.PoEMemory.Elements;
 using ExileCore2.PoEMemory.MemoryObjects;
-using ExileCore2.Shared.Nodes;
 using StrongboxHelper.Utils;
-using ImGuiNET;
 
 namespace StrongboxHelper
 {
-    public enum StrongboxType
-    {
-        Cartographer,
-        Blacksmith,
-        Jeweller,
-        Ornate,
-        Researcher,
-        Strongbox,
-        Large,
-        Arcane
-    }
-
     public enum CurrencyType
     {
         Wisdom,
@@ -33,13 +19,6 @@ namespace StrongboxHelper
         Regal,
         Exalted
     }
-
-    public readonly record struct StrongboxConfig(
-        string DisplayName,
-        string[] Keywords, // for more robust matching
-        ToggleNode Toggle,
-        Dictionary<CurrencyType, bool> DefaultCurrencies
-    );
 
     public readonly record struct CurrencyConfig(
         string DisplayName,
@@ -60,102 +39,38 @@ namespace StrongboxHelper
             new("Exalted Orb", "Art/2DItems/Currency/CurrencyAddModToRare.dds")
         ];
 
-        private StrongboxSettings CurrencySettings => Settings.StrongboxSettings;
-        private StrongboxEnableSettings EnableSettings => Settings.StrongboxEnableSettings;
-
-        private static readonly Dictionary<StrongboxType, (string DisplayName, string[] Keywords)> s_strongboxInfo = new()
-        {
-            [StrongboxType.Cartographer] = ("Cartographer's Strongbox", ["cartographer"]),
-            [StrongboxType.Blacksmith] = ("Blacksmith's Strongbox", ["blacksmith"]),
-            [StrongboxType.Jeweller] = ("Jeweller's Strongbox", ["jeweller", "jeweler"]),
-            [StrongboxType.Ornate] = ("Ornate Strongbox", ["ornate"]),
-            [StrongboxType.Researcher] = ("Researcher's Strongbox", ["researcher", "research"]),
-            [StrongboxType.Strongbox] = ("Strongbox", ["strongbox"]),
-            [StrongboxType.Large] = ("Large Strongbox", ["large"]),
-            [StrongboxType.Arcane] = ("Arcane Strongbox", ["arcane"])
-        };
+        private StrongboxTypeGroup CustomStrongboxTypes => Settings.CustomStrongboxTypes;
 
         public override void Render()
         {
             if (!Settings.Enable || _applyingOrbs) return;
+            
+            // ensure defaults are initialized on first run
+            Settings.EnsureDefaultsInitialized();
 
             _applyingOrbs = true;
             ApplyOrbsOnStrongbox().ContinueWith(t => _applyingOrbs = false);
         }
 
-        private StrongboxType? GetStrongboxType(string strongboxName)
+        private StrongBoxSettingsItem? GetMatchingStrongboxType(string strongboxName)
         {
             var nameLower = strongboxName.ToLower();
+            var activeTypes = CustomStrongboxTypes.GetActiveItems();
             
-            foreach (var (type, (_, keywords)) in s_strongboxInfo)
-            {
-                if (keywords.Any(keyword => nameLower.Contains(keyword, _strongboxComparison)))
-                {
-                    return type;
-                }
-            }
-            
-            return null;
+            // find the first matching strongbox type by name
+            return activeTypes
+                .Where(item => nameLower.Contains(item.Name.ToLower(), _strongboxComparison))
+                .FirstOrDefault();
         }
 
         public override void DrawSettings()
         {
             base.DrawSettings();
-
-            ImGui.Separator();
-            ImGui.Text("Strongbox Configuration");
-            ImGui.Separator();
-            DrawStrongboxSettings();
-        }
-
-        private void DrawStrongboxSettings()
-        {
-            foreach (var (strongboxType, (displayName, _)) in s_strongboxInfo)
-            {
-                var enabled = EnableSettings.GetEnabled(strongboxType);
-                if (ImGui.Checkbox(displayName, ref enabled))
-                    EnableSettings.SetEnabled(strongboxType, enabled);
-
-                if (enabled)
-                {
-                    ImGui.Indent();
-                    DrawCurrencyToggles(strongboxType);
-                    ImGui.Unindent();
-                }
-                ImGui.Spacing();
-            }
-        }
-
-        private void DrawCurrencyToggles(StrongboxType strongboxType)
-        {
-            var strongboxSettings = CurrencySettings.GetSettings(strongboxType);
             
-            if (ImGui.BeginTable($"{strongboxType}CurrencyTable", 3, ImGuiTableFlags.None))
-            {
-                ImGui.TableSetupColumn("Column1", ImGuiTableColumnFlags.WidthFixed, 120);
-                ImGui.TableSetupColumn("Column2", ImGuiTableColumnFlags.WidthFixed, 120);
-                ImGui.TableSetupColumn("Column3", ImGuiTableColumnFlags.WidthFixed, 120);
-
-                for (int row = 0; row < 2; row++)
-                {
-                    ImGui.TableNextRow();
-                    for (int col = 0; col < 3; col++)
-                    {
-                        var index = row * 3 + col;
-                        if (index >= s_currencies.Length) break;
-                        
-                        ImGui.TableNextColumn();
-                        var currencyType = (CurrencyType)index;
-                        var currencyConfig = s_currencies[index];
-                        var enabled = strongboxSettings.GetCurrency(currencyType);
-                        
-                        if (ImGui.Checkbox(currencyConfig.DisplayName, ref enabled))
-                            strongboxSettings.SetCurrency(currencyType, enabled);
-                    }
-                }
-
-                ImGui.EndTable();
-            }
+            // ensure defaults are initialized before drawing UI
+            Settings.EnsureDefaultsInitialized();
+            
+            CustomStrongboxTypes.DrawSettings();
         }
 
         private Element? RecursiveFindChildWithText(Element element, string text, HashSet<Element>? visited = null)
@@ -188,14 +103,8 @@ namespace StrongboxHelper
 
         private bool IsStrongboxTypeEnabled(string strongboxName)
         {
-            var strongboxType = GetStrongboxType(strongboxName);
-            return strongboxType.HasValue && EnableSettings.GetEnabled(strongboxType.Value);
-        }
-
-        private bool IsCurrencyEnabledForStrongbox(string strongboxName, CurrencyType currencyType)
-        {
-            var strongboxType = GetStrongboxType(strongboxName);
-            return strongboxType.HasValue && CurrencySettings.GetSettings(strongboxType.Value).GetCurrency(currencyType);
+            var matchingType = GetMatchingStrongboxType(strongboxName);
+            return matchingType != null && matchingType.Enabled;
         }
 
         private List<(Entity entity, LabelOnGround label, string StrongboxName, Vector2 Position)> DetectStrongboxesOnGround()
@@ -264,10 +173,10 @@ namespace StrongboxHelper
                 return;
             }
 
-            // group essences by position (same position = same monolith)
+            // group strongboxes by position (same position = same strongbox)
             var strongboxGroups = strongboxesOnGround.GroupBy(e => e.Position).ToList();
             
-            // find the closest monolith group by parent element
+            // find the closest strongbox group by parent element
             var closestGroup = strongboxGroups.OrderBy(g => g.First().entity.DistancePlayer).FirstOrDefault();
             if (closestGroup == null) {
                 return;
@@ -285,18 +194,24 @@ namespace StrongboxHelper
                 return;   
             }
 
-            // recursive find child with TextureName in priority order
+            // get the matching strongbox type to check its currency settings
+            var matchingType = GetMatchingStrongboxType(StrongboxName);
+            if (matchingType == null) {
+                return;
+            }
+
+            // apply currencies in priority order, but only those enabled for this strongbox type
             string? textureName = null;
             Element? child = null;
             for (var i = 0; i < s_currencies.Length; i++) {
                 var currencyConfig = s_currencies[i];
                 var currencyType = (CurrencyType)i;
                 
-                // check if this currency type is enabled for this strongbox
-                if (!IsCurrencyEnabledForStrongbox(StrongboxName, currencyType)) {
+                // check if this currency is enabled for this specific strongbox type
+                if (!matchingType.GetCurrency(currencyType)) {
                     continue;
                 }
-
+                
                 textureName = currencyConfig.TexturePath;
                 child = RecursiveFindChildWithTextureName(label.Label, textureName);
                 if (child != null) {
