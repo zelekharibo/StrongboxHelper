@@ -94,7 +94,6 @@ namespace StrongboxHelper
                         // check label's children for strongbox name
                         var strongBoxName = RecursiveFindChildWithText(labelElement, "Strongbox");
                         if (strongBoxName != null) {
-                            LogMessage($"Strongbox name: {strongBoxName.Text}");
                             _reusableStrongboxesList.Add((itemOnGround, label, strongBoxName.Text, position));
                         }
                     }
@@ -128,7 +127,6 @@ namespace StrongboxHelper
         {
             var strongboxesOnGround = DetectStrongboxesOnGround();
             if (strongboxesOnGround.Count == 0) {
-                LogMessage("No strongboxes found on ground");
                 return;
             }
 
