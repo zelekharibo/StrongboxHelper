@@ -226,18 +226,12 @@ namespace StrongboxHelper
             var previousMousePosition = Mouse.GetCursorPosition();
 
             // repeat clicking until no more child with texture is found
-            while (child != null)
-            {
                 await Mouse.MoveMouse(child.GetClientRectCache.Center + GameController.Window.GetWindowRectangleTimeCache.TopLeft);
                 await Task.Delay(10);
                 await Mouse.LeftDown();
                 await Task.Delay(10);
                 await Mouse.LeftUp();
                 await Task.Delay(250);
-                
-                // look for another child with the same texture
-                child = RecursiveFindChildWithTextureName(label.Label, textureName);
-            }
 
             if (Settings.RestoreMouseToOriginalPosition)
             {
