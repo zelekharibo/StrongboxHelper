@@ -7,7 +7,6 @@ using ExileCore2;
 using ExileCore2.PoEMemory;
 using ExileCore2.PoEMemory.Elements;
 using ExileCore2.PoEMemory.MemoryObjects;
-using StrongboxHelper.Utils;
 
 namespace StrongboxHelper
 {
@@ -223,19 +222,19 @@ namespace StrongboxHelper
                 return;
             }
 
-            var previousMousePosition = Mouse.GetCursorPosition();
+            var previousMousePosition = Input.MousePosition;
 
             // repeat clicking until no more child with texture is found
-                await Mouse.MoveMouse(child.GetClientRectCache.Center + GameController.Window.GetWindowRectangleTimeCache.TopLeft);
+                Input.SetCursorPos(child.GetClientRectCache.Center + GameController.Window.GetWindowRectangleTimeCache.TopLeft);
                 await Task.Delay(10);
-                await Mouse.LeftDown();
+                Input.MouseMove();
                 await Task.Delay(10);
-                await Mouse.LeftUp();
-                await Task.Delay(250);
+                Input.Click(System.Windows.Forms.MouseButtons.Left);
 
             if (Settings.RestoreMouseToOriginalPosition)
             {
-                await Mouse.MoveMouse(previousMousePosition);
+                Input.SetCursorPos(previousMousePosition);
+                Input.MouseMove();
             }
         }
     }
